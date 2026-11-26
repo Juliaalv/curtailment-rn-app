@@ -10,7 +10,8 @@ import {
 } from 'recharts'
 import type { Despacho } from './lib/cenarios'
 import { n1 } from './formato'
-import { SERIES_DESPACHO, type Serie } from './series'
+import { useIdioma } from './i18n'
+import { seriesDespacho, type Serie } from './series'
 
 const eixo = { fontSize: 12, fill: 'var(--muted)' }
 
@@ -106,6 +107,7 @@ export function GraficoDiaTipico(props: { solar: number[]; eolico: number[]; ser
 }
 
 export function GraficoDespacho({ despacho, cargaMw }: { despacho: Despacho; cargaMw: number }) {
+  const { t } = useIdioma()
   const dados = despacho.direto.map((direto, hora) => ({
     hora,
     direto,
@@ -113,5 +115,5 @@ export function GraficoDespacho({ despacho, cargaMw }: { despacho: Despacho; car
     carrega: despacho.carrega[hora],
     sobra: despacho.sobra[hora],
   }))
-  return <Barras24h dados={dados} series={SERIES_DESPACHO} cargaMw={cargaMw} />
+  return <Barras24h dados={dados} series={seriesDespacho(t)} cargaMw={cargaMw} />
 }

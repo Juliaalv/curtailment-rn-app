@@ -1,5 +1,6 @@
 import type { KeyboardEvent } from 'react'
 import { n1, titulo } from './formato'
+import { useIdioma } from './i18n'
 import { NOME_UF, UF_DISPONIVEL } from './ufs'
 
 type Anel = [number, number][]
@@ -58,6 +59,7 @@ interface MapaBrasilProps {
 }
 
 export function MapaBrasil({ malhas, resumo, destaque, onDestaque, onEscolher }: MapaBrasilProps) {
+  const { t } = useIdioma()
   const L = 560
   const todos = Object.values(malhas.ufs).flat()
   const { altura, p, d } = projecao(todos, L, 4)
@@ -65,7 +67,7 @@ export function MapaBrasil({ malhas, resumo, destaque, onDestaque, onEscolher }:
   const ordem = Object.keys(malhas.ufs).sort((a, b) => Number(a in UF_DISPONIVEL) - Number(b in UF_DISPONIVEL))
 
   return (
-    <svg className="mapa" viewBox={`0 0 ${L + 200} ${altura}`} role="group" aria-label="Mapa do Brasil por estado">
+    <svg className="mapa" viewBox={`0 0 ${L + 200} ${altura}`} role="group" aria-label={t.mapaBrasil}>
       <defs>
         <pattern id="hachura" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
           <rect width="6" height="6" fill="var(--land)" />
@@ -92,7 +94,7 @@ export function MapaBrasil({ malhas, resumo, destaque, onDestaque, onEscolher }:
           />
         ) : (
           <path key={cod} className="uf sem-dados" d={d(malhas.ufs[cod])}>
-            <title>{NOME_UF[cod]} — sem dados processados</title>
+            <title>{NOME_UF[cod]} — {t.semDadosUf}</title>
           </path>
         )
       })}
@@ -135,6 +137,7 @@ interface MapaEstadoProps {
 
 /** Contorno do RN com as usinas (pontos pequenos) e um círculo por cluster, de área proporcional ao corte. */
 export function MapaEstado({ malhas, clusters, destaque, onDestaque, onEscolher }: MapaEstadoProps) {
+  const { t } = useIdioma()
   const L = 900
   const { altura, p, d } = projecao(malhas.rn, L, 14)
   const maior = Math.max(...clusters.map((c) => c.corte_anual_gwh))
@@ -147,7 +150,7 @@ export function MapaEstado({ malhas, clusters, destaque, onDestaque, onEscolher 
   const rotulados = ativo ? [...fixos, ativo] : fixos
 
   return (
-    <svg className="mapa" viewBox={`0 0 ${L} ${altura}`} role="group" aria-label="Clusters no mapa do Rio Grande do Norte">
+    <svg className="mapa" viewBox={`0 0 ${L} ${altura}`} role="group" aria-label={t.mapaEstado}>
       <path className="estado" d={d(malhas.rn)} />
       <g className="usinas">
         {clusters.flatMap((c) => [

@@ -1,17 +1,19 @@
+import type { Textos } from './i18n'
+
 export interface Serie {
   chave: string
   nome: string
   cor: string
 }
 
-export const SERIES_FONTE: Serie[] = [
-  { chave: 'eolico', nome: 'Corte eólico', cor: 'var(--c-eolico)' },
-  { chave: 'solar', nome: 'Corte solar', cor: 'var(--c-solar)' },
+export const seriesFonte = (t: Textos): Serie[] => [
+  { chave: 'eolico', nome: t.serieEolico, cor: 'var(--c-eolico)' },
+  { chave: 'solar', nome: t.serieSolar, cor: 'var(--c-solar)' },
 ]
 
-export const SERIES_DESPACHO: Serie[] = [
-  { chave: 'direto', nome: 'Corte consumido direto pela carga', cor: 'var(--c-direto)' },
-  { chave: 'descarrega', nome: 'Devolvido pelo BESS', cor: 'var(--c-descarga)' },
-  { chave: 'carrega', nome: 'Carregando o BESS', cor: 'var(--c-carrega)' },
-  { chave: 'sobra', nome: 'Continua sendo cortado', cor: 'var(--c-sobra)' },
+export const seriesDespacho = (t: Textos): Serie[] => [
+  { chave: 'direto', nome: t.serieDireto, cor: 'var(--c-direto)' },
+  { chave: 'descarrega', nome: t.serieDescarrega, cor: 'var(--c-descarga)' },
+  { chave: 'carrega', nome: t.serieCarrega, cor: 'var(--c-carrega)' },
+  { chave: 'sobra', nome: t.serieSobra, cor: 'var(--c-sobra)' },
 ]

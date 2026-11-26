@@ -2,8 +2,9 @@ import { type CSSProperties, type ReactNode, useEffect, useMemo, useState, useSy
 import { n1, titulo } from './formato'
 import { GraficoDespacho, GraficoDiaTipico, Legenda } from './Graficos'
 import { DOD, aproveitamento, cenario, desempenhoReal, despachoDiaTipico } from './lib/cenarios'
-import { type ClusterResumo, type Malhas, MapaBrasil, MapaEstado, type Tipo } from './Mapa'
-import { SERIES_DESPACHO, SERIES_FONTE } from './series'
+import { type ClusterResumo, type Malhas, MapaBrasil, MapaEstado } from './Mapa'
+import { type Idioma, setIdioma, useIdioma } from './i18n'
+import { seriesDespacho, seriesFonte } from './series'
 import { NOME_UF, UF_DISPONIVEL } from './ufs'
 
 interface Cluster extends ClusterResumo {
@@ -12,7 +13,6 @@ interface Cluster extends ClusterResumo {
   serie: number[]
 }
 
-const NOME_TIPO: Record<Tipo, string> = { hibrido: 'Solar + eólico', solar: 'Solar', eolico: 'Eólico' }
 const N_NIVEIS = 8
 const DOD_MIN = 50
 const DOD_MAX = 100
@@ -40,6 +40,7 @@ function Tile({ rotulo, valor, unidade, nota, corte }: TileProps) {
 }
 
 function Painel({ cluster }: { cluster: Cluster }) {
+  const { t } = useIdioma()
   const corte = useMemo(
     () => cluster.dia_tipico_solar.map((s, h) => s + cluster.dia_tipico_eolico[h]),
     [cluster],
@@ -71,10 +72,10 @@ function Painel({ cluster }: { cluster: Cluster }) {
     [corte, cluster, c1, dod],
   )
 
-  const series = SERIES_FONTE.filter((s) => (s.chave === 'solar' ? cluster.n_solar : cluster.n_eolico) > 0)
+  const series = seriesFonte(t).filter((s) => (s.chave === 'solar' ? cluster.n_solar : cluster.n_eolico) > 0)
   const usinas = [
-    cluster.n_eolico > 0 && `${cluster.n_eolico} eólicas`,
-    cluster.n_solar > 0 && `${cluster.n_solar} solares`,
+    cluster.n_eolico > 0 && t.eolicas(cluster.n_eolico),
+    cluster.n_solar > 0 && t.solares(cluster.n_solar),
   ].filter(Boolean)
 
   return (
@@ -83,38 +84,32 @@ function Painel({ cluster }: { cluster: Cluster }) {
         <p className="eyebrow">Cluster · RN · 2025</p>
         <h2>{titulo(cluster.subestacao)}</h2>
         <p className="lede">
-          Cluster {cluster.id} · {NOME_TIPO[cluster.tipo]} · {usinas.join(' e ')}
+          Cluster {cluster.id} · {t.tipo[cluster.tipo]} · {usinas.join(t.e)}
         </p>
       </header>
 
       <div className="tiles">
-        <Tile rotulo="Energia cortada em 2025" valor={n1(cluster.corte_anual_gwh)} unidade="GWh" corte />
-        <Tile rotulo="Corte no dia típico" valor={n1(corteDia, 0)} unidade="MWh/dia" />
-        <Tile rotulo="Corte médio" valor={n1(corteDia / 24)} unidade="MW" />
-        <Tile rotulo="Maior hora do dia típico" valor={n1(Math.max(...corte))} unidade="MW" />
+        <Tile rotulo={t.energiaCortada} valor={n1(cluster.corte_anual_gwh)} unidade="GWh" corte />
+        <Tile rotulo={t.corteDiaTipico} valor={n1(corteDia, 0)} unidade="MWh/dia" />
+        <Tile rotulo={t.corteMedio} valor={n1(corteDia / 24)} unidade="MW" />
+        <Tile rotulo={t.maiorHora} valor={n1(Math.max(...corte))} unidade="MW" />
       </div>
 
       <section className="secao">
-        <h3>Cenário 1 — carga fixa, sem bateria</h3>
-        <p className="descricao">
-          A carga é igual à menor barra de energia cortada do dia típico. Nenhuma hora do dia típico fica em
-          déficit, então não é preciso armazenamento.
-        </p>
+        <h3>{t.c1Titulo}</h3>
+        <p className="descricao">{t.c1Desc}</p>
         <div className="tiles">
-          <Tile rotulo="Carga fixa" valor={n1(c1.p)} unidade="MW" />
-          <Tile rotulo="Aproveitamento no dia típico" valor={n1(c1.tipico)} unidade="%" nota="teto do método" />
-          <Tile rotulo="Aproveitamento no ano real" valor={n1(c1.real)} unidade="%" nota="série horária de 2025" />
+          <Tile rotulo={t.cargaFixa} valor={n1(c1.p)} unidade="MW" />
+          <Tile rotulo={t.aprovTipico} valor={n1(c1.tipico)} unidade="%" nota={t.tetoMetodo} />
+          <Tile rotulo={t.aprovReal} valor={n1(c1.real)} unidade="%" nota={t.serieHoraria} />
         </div>
         {c1.p < 0.05 && (
-          <p className="aviso">
-            Neste cluster há horas do dia típico praticamente sem corte, então a menor barra é zero: sem bateria
-            não existe carga fixa que possa ser atendida só com a energia cortada.
-          </p>
+          <p className="aviso">{t.c1Aviso}</p>
         )}
         <div className="cartao">
-          <h4>Energia cortada no dia típico</h4>
-          <p className="subtitulo">MWh por hora, média dos 365 dias de 2025</p>
-          <Legenda series={series.length > 1 ? series : []} linha={c1.p >= 0.05 ? 'Carga do Cenário 1' : undefined} />
+          <h4>{t.graficoTipico}</h4>
+          <p className="subtitulo">{t.graficoTipicoSub}</p>
+          <Legenda series={series.length > 1 ? series : []} linha={c1.p >= 0.05 ? t.cargaC1 : undefined} />
           <GraficoDiaTipico
             solar={cluster.dia_tipico_solar}
             eolico={cluster.dia_tipico_eolico}
@@ -125,16 +120,11 @@ function Painel({ cluster }: { cluster: Cluster }) {
       </section>
 
       <section className="secao">
-        <h3>Cenário 2 — carga maior com BESS de 4 h</h3>
-        <p className="descricao">
-          A carga sobe acima do Cenário 1 e a bateria cobre as horas em que o corte não basta. O banco é sempre
-          de 4 h: a potência é a maior entre o pior déficit de uma hora e a energia mínima dividida por 4 × DoD.
-          A capacidade mostrada é a nominal; com profundidade de descarga de {n1(dodPct, 0)}%, só{' '}
-          {n1(dodPct, 0)}% dela é útil.
-        </p>
+        <h3>{t.c2Titulo}</h3>
+        <p className="descricao">{t.c2Desc(n1(dodPct, 0))}</p>
 
         <div className="alvo">
-          <label htmlFor="alvo">Alvo de aproveitamento do corte do dia típico</label>
+          <label htmlFor="alvo">{t.alvoRotulo}</label>
           <output htmlFor="alvo">{n1(alvo)}%</output>
           <div className="trilho" style={{ '--pct': fracao(alvo) } as CSSProperties}>
             <div className="marcas" aria-hidden="true">
@@ -157,13 +147,15 @@ function Painel({ cluster }: { cluster: Cluster }) {
             />
           </div>
           <div className="escala">
-            <span>Cenário 1 ({n1(alvoMin)}%)</span>
+            <span>
+              {t.cenario1} ({n1(alvoMin)}%)
+            </span>
             <span>100%</span>
           </div>
         </div>
 
         <div className="alvo">
-          <label htmlFor="dod">Profundidade de descarga (DoD) do BESS</label>
+          <label htmlFor="dod">{t.dodRotulo}</label>
           <output htmlFor="dod">{n1(dodPct, 0)}%</output>
           <div className="trilho" style={{ '--pct': fracaoDod(dodPct) } as CSSProperties}>
             <input
@@ -183,35 +175,35 @@ function Painel({ cluster }: { cluster: Cluster }) {
         </div>
 
         <div className="tiles">
-          <Tile rotulo="Carga flat" valor={n1(c2.cargaMw)} unidade="MW" />
-          <Tile rotulo="Energia do BESS" valor={n1(c2.bessMwh)} unidade="MWh" />
-          <Tile rotulo="Potência do BESS" valor={n1(c2.bessMw)} unidade="MW" />
+          <Tile rotulo={t.cargaFlat} valor={n1(c2.cargaMw)} unidade="MW" />
+          <Tile rotulo={t.energiaBess} valor={n1(c2.bessMwh)} unidade="MWh" />
+          <Tile rotulo={t.potenciaBess} valor={n1(c2.bessMw)} unidade="MW" />
           <Tile
-            rotulo="Aproveitamento no ano real"
+            rotulo={t.aprovReal}
             valor={n1(c2.aproveitamentoRealPct)}
             unidade="%"
-            nota={`alvo no dia típico: ${n1(alvo)}%`}
+            nota={t.alvoNota(n1(alvo))}
           />
         </div>
 
         <div className="cartao">
-          <h4>Para onde vai cada MWh cortado no dia típico</h4>
-          <p className="subtitulo">MWh por hora, com a carga e o BESS do alvo escolhido</p>
-          <Legenda series={SERIES_DESPACHO} linha="Carga flat" />
+          <h4>{t.graficoDespacho}</h4>
+          <p className="subtitulo">{t.graficoDespachoSub}</p>
+          <Legenda series={seriesDespacho(t)} linha={t.cargaFlat} />
           <GraficoDespacho despacho={despacho} cargaMw={c2.cargaMw} />
         </div>
 
         <div className="cartao">
-          <h4>Níveis do Cenário 2</h4>
-          <p className="subtitulo">Do Cenário 1 a 100%; clique em uma linha para usar o alvo</p>
+          <h4>{t.niveis}</h4>
+          <p className="subtitulo">{t.niveisSub}</p>
           <table>
             <thead>
               <tr>
-                <th>Alvo no dia típico (%)</th>
-                <th>Carga flat (MW)</th>
+                <th>{t.colAlvo}</th>
+                <th>{t.colCarga}</th>
                 <th>BESS (MWh)</th>
                 <th>BESS (MW)</th>
-                <th>Ano real (%)</th>
+                <th>{t.colAnoReal}</th>
               </tr>
             </thead>
             <tbody>
@@ -224,7 +216,7 @@ function Painel({ cluster }: { cluster: Cluster }) {
                     <button
                       type="button"
                       aria-pressed={ativo}
-                      aria-label={`Usar alvo de ${n1(n.alvoPct)}%`}
+                      aria-label={t.usarAlvo(n1(n.alvoPct))}
                       onClick={(e) => {
                         e.stopPropagation()
                         usar()
@@ -244,11 +236,7 @@ function Painel({ cluster }: { cluster: Cluster }) {
           </table>
         </div>
 
-        <p className="aviso">
-          O dia típico é a média dos dias do ano e serve para dimensionar. O aproveitamento que ele indica é um
-          teto: a coluna do ano real mede o que a mesma carga e a mesma bateria entregam na série horária de
-          2025, com bateria ideal e a carga parando quando falta energia.
-        </p>
+        <p className="aviso">{t.c2Aviso}</p>
       </section>
     </article>
   )
@@ -274,27 +262,35 @@ const FONTE_ONS = 'https://dados.ons.org.br/dataset/restricao_coff_eolica_detail
 
 /** Cabeçalho e rodapé comuns: quem fala e de onde vêm os dados. */
 function Moldura({ children }: { children: ReactNode }) {
+  const { idioma, t } = useIdioma()
   return (
     <>
       <header className="site-header">
         <a className="marca" href="#/">
           Curtailment &amp; BESS <span>· Rio Grande do Norte</span>
         </a>
-        <nav aria-label="Seções">
+        <nav aria-label={t.secoes}>
           <a href={FONTE_ONS} target="_blank" rel="noreferrer">
-            Dados
+            {t.dados}
           </a>
+          <div className="idiomas" role="group" aria-label={t.idiomaRotulo}>
+            {(['pt', 'en'] as Idioma[]).map((i) => (
+              <button key={i} type="button" aria-pressed={idioma === i} onClick={() => setIdioma(i)}>
+                {i.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </nav>
       </header>
       {children}
       <footer className="site-footer">
         <div className="site-footer-in">
           <p>
-            <b>Fonte:</b> ONS — Dados de Restrição de Operação por Constrained-off de Usinas Eólicas e Fotovoltaicas (
+            <b>{t.fonte}</b> {t.fonteTexto}
             <a href={FONTE_ONS} target="_blank" rel="noreferrer">
-              Portal de Dados Abertos
+              {t.portal}
             </a>
-            ), apuração 2025. Elaboração própria.
+            {t.fonteFim}
           </p>
         </div>
       </footer>
@@ -303,11 +299,12 @@ function Moldura({ children }: { children: ReactNode }) {
 }
 
 function Inicio({ malhas, clusters }: { malhas: Malhas; clusters: ClusterResumo[] }) {
+  const { t } = useIdioma()
   const [destaque, setDestaque] = useState<string>()
   const total = clusters.reduce((a, c) => a + c.corte_anual_gwh, 0)
   const resumo = {
     24: {
-      aria: `Rio Grande do Norte, ${clusters.length} clusters, ${n1(total, 0)} GWh cortados`,
+      aria: t.ariaRN(clusters.length, n1(total, 0)),
       anotacao: `${n1(total, 0)} GWh`,
     },
   }
@@ -317,25 +314,21 @@ function Inicio({ malhas, clusters }: { malhas: Malhas; clusters: ClusterResumo[
     <main className="wrap">
       <div className="intro">
         <p className="eyebrow">Curtailment · SIN · 2025</p>
-        <h1>Curtailment de energia renovável</h1>
-        <p className="lede">
-          Cenários de carga e BESS para aproveitar a energia cortada, por cluster de usinas. Escolha um estado.
-        </p>
+        <h1>{t.tituloInicio}</h1>
+        <p className="lede">{t.ledeInicio}</p>
 
         <p className="bignum">
           {n1(total, 0)}
           <span className="unidade"> GWh</span>
-          <small>
-            cortados em 2025 no Rio Grande do Norte · {clusters.length} clusters
-          </small>
+          <small>{t.bignumNota(clusters.length)}</small>
         </p>
 
         <table className="states">
           <thead>
             <tr>
-              <th>Estado</th>
+              <th>{t.estado}</th>
               <th className="num">Clusters</th>
-              <th className="num">GWh cortados</th>
+              <th className="num">{t.gwhCortados}</th>
             </tr>
           </thead>
           <tbody>
@@ -359,13 +352,13 @@ function Inicio({ malhas, clusters }: { malhas: Malhas; clusters: ClusterResumo[
               <td className="num corte">{n1(total, 0)}</td>
             </tr>
             <tr className="nodata">
-              <td>Outros {semDados} estados</td>
+              <td>{t.outrosEstados(semDados)}</td>
               <td className="num">—</td>
               <td className="num">—</td>
             </tr>
           </tbody>
         </table>
-        <p className="nota-tabela">Os demais estados ainda não têm dados processados.</p>
+        <p className="nota-tabela">{t.semDadosNota}</p>
       </div>
 
       <div className="map">
@@ -379,11 +372,11 @@ function Inicio({ malhas, clusters }: { malhas: Malhas; clusters: ClusterResumo[
         <div className="legenda">
           <span>
             <i style={{ background: 'var(--primary)' }} />
-            Com dados
+            {t.comDados}
           </span>
           <span>
             <i className="hachura" />
-            Sem dados processados
+            {t.semDados}
           </span>
         </div>
       </div>
@@ -392,6 +385,7 @@ function Inicio({ malhas, clusters }: { malhas: Malhas; clusters: ClusterResumo[
 }
 
 function Estado({ malhas, clusters }: { malhas: Malhas; clusters: ClusterResumo[] }) {
+  const { t } = useIdioma()
   const [destaque, setDestaque] = useState<string>()
   const total = clusters.reduce((a, c) => a + c.corte_anual_gwh, 0)
 
@@ -400,12 +394,12 @@ function Estado({ malhas, clusters }: { malhas: Malhas; clusters: ClusterResumo[
   return (
     <main className="wrap">
       <header className="intro-largo">
-        <Trilha passos={[{ rotulo: 'Brasil', href: '#/' }, { rotulo: 'Rio Grande do Norte' }]} />
+        <Trilha passos={[{ rotulo: t.brasil, href: '#/' }, { rotulo: 'Rio Grande do Norte' }]} />
         <p className="eyebrow">Curtailment · RN · 2025</p>
         <h1>Rio Grande do Norte</h1>
         <p className="lede">
-          <b className="corte">{n1(total, 0)} GWh</b> cortados em 2025 em {clusters.length} clusters de usinas.
-          Selecione um cluster no mapa ou na tabela.
+          <b className="corte">{n1(total, 0)} GWh</b>
+          {t.ledeEstado(clusters.length)}
         </p>
       </header>
 
@@ -420,27 +414,27 @@ function Estado({ malhas, clusters }: { malhas: Malhas; clusters: ClusterResumo[
         <div className="legenda">
           <span>
             <i className="bola" style={{ background: 'var(--c-eolico)' }} />
-            Eólico
+            {t.tipo.eolico}
           </span>
           <span>
             <i className="bola" style={{ background: 'var(--c-solar)' }} />
-            Solar
+            {t.tipo.solar}
           </span>
           <span>
             <i
               className="bola"
               style={{ background: 'linear-gradient(90deg, var(--c-eolico) 50%, var(--c-solar) 50%)' }}
             />
-            Solar + eólico
+            {t.tipo.hibrido}
           </span>
-          <span>Área do círculo: energia cortada em 2025 · pontos: usinas</span>
+          <span>{t.legendaArea}</span>
         </div>
       </div>
 
       <div className="lista-estado">
         <div className="lista-cab" aria-hidden="true">
           <span>Cluster</span>
-          <span>GWh cortados</span>
+          <span>{t.gwhCortados}</span>
         </div>
         <ul className="lista">
           {clusters.map((c) => (
@@ -455,7 +449,7 @@ function Estado({ malhas, clusters }: { malhas: Malhas; clusters: ClusterResumo[
                 onBlur={() => setDestaque(undefined)}
               >
                 <span className="nome">{titulo(c.subestacao)}</span>
-                <span className="tipo">{NOME_TIPO[c.tipo]}</span>
+                <span className="tipo">{t.tipo[c.tipo]}</span>
                 <span className="gwh">{n1(c.corte_anual_gwh, 0)}</span>
               </button>
             </li>
@@ -468,8 +462,9 @@ function Estado({ malhas, clusters }: { malhas: Malhas; clusters: ClusterResumo[
 
 /** Trilha de navegação: os passos com href são links; o último é a página atual. */
 function Trilha({ passos }: { passos: { rotulo: string; href?: string }[] }) {
+  const { t } = useIdioma()
   return (
-    <nav className="trilha" aria-label="Você está em">
+    <nav className="trilha" aria-label={t.voceEsta}>
       <ol>
         {passos.map((p) => (
           <li key={p.rotulo}>
@@ -483,12 +478,13 @@ function Trilha({ passos }: { passos: { rotulo: string; href?: string }[] }) {
 
 /** Blocos cinza no lugar do conteúdo enquanto os dados carregam. */
 function Esqueleto({ variante }: { variante: 'inicio' | 'cluster' }) {
+  const { t } = useIdioma()
   const bloco = (w: string, h: number, mt = 0) => (
     <div className="esqueleto" style={{ width: w, height: h, marginTop: mt }} />
   )
   if (variante === 'inicio')
     return (
-      <main className="wrap" aria-busy="true" aria-label="Carregando">
+      <main className="wrap" aria-busy="true" aria-label={t.carregando}>
         <div className="intro">
           {bloco('40%', 14)}
           {bloco('90%', 44, 16)}
@@ -501,7 +497,7 @@ function Esqueleto({ variante }: { variante: 'inicio' | 'cluster' }) {
       </main>
     )
   return (
-    <div aria-busy="true" aria-label="Carregando">
+    <div aria-busy="true" aria-label={t.carregando}>
       {bloco('20%', 14)}
       {bloco('50%', 44, 16)}
       {bloco('35%', 16, 16)}
@@ -520,6 +516,7 @@ function Esqueleto({ variante }: { variante: 'inicio' | 'cluster' }) {
 
 /** Página só do cluster: as informações, com a trilha de volta para o mapa do estado. */
 function PaginaCluster({ id, nome }: { id: string; nome: string }) {
+  const { t } = useIdioma()
   const [cluster, setCluster] = useState<Cluster>()
 
   useEffect(() => {
@@ -537,7 +534,7 @@ function PaginaCluster({ id, nome }: { id: string; nome: string }) {
     <main className="pagina">
       <Trilha
         passos={[
-          { rotulo: 'Brasil', href: '#/' },
+          { rotulo: t.brasil, href: '#/' },
           { rotulo: 'Rio Grande do Norte', href: '#/rn' },
           { rotulo: titulo(nome) },
         ]}

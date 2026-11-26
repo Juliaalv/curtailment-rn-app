@@ -1,6 +1,8 @@
-/** Número em pt-BR com casas decimais fixas (padrão: 1). */
+import { idiomaAtual } from './i18n'
+
+/** Número no formato do idioma corrente (pt-BR ou en-US), com casas decimais fixas (padrão: 1). */
 export const n1 = (v: number, casas = 1) =>
-  v.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas })
+  v.toLocaleString(idiomaAtual() === 'pt' ? 'pt-BR' : 'en-US', { minimumFractionDigits: casas, maximumFractionDigits: casas })
 
 /** "SERRA DO MEL 2" → "Serra do Mel 2"; "ACU III" → "Acu III". */
 export const titulo = (s: string) =>
