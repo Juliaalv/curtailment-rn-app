@@ -1,7 +1,7 @@
 // Confere a biblioteca contra os valores publicados no notebook 06 (dados do ONS de 2025).
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { aproveitamento, bess4h, capacidade, carga, cenario, desempenhoReal, despachoDiaTipico } from './cenarios'
+import { DOD, aproveitamento, bess4h, capacidade, carga, cenario, desempenhoReal, despachoDiaTipico } from './cenarios'
 
 function ler(id: string) {
   const d = JSON.parse(readFileSync(`public/data/${id}.json`, 'utf-8'))
@@ -38,13 +38,36 @@ describe('Cenário 2 — carga + BESS de 4 h', () => {
     expect(desempenhoReal(serie, p, capacidade(corte, p))).toBeCloseTo(60.7, 0)
   })
 
-  it('Serra do Mel a 100%: 363,6 MWh / 90,9 MW e 65,8% no ano real', () => {
+  it('Serra do Mel a 100%: 454,4 MWh / 113,6 MW nominais e 65,8% no ano real', () => {
     const { corte, serie } = ler('RNSDM_0')
     const c = cenario(corte, serie, 100)
     expect(c.cargaMw).toBeCloseTo(154.03, 1)
-    expect(c.bessMwh).toBeCloseTo(363.6, 0)
-    expect(c.bessMw).toBeCloseTo(90.89, 1)
+    expect(c.bessMwh).toBeCloseTo(454.4, 0)
+    expect(c.bessMw).toBeCloseTo(113.61, 1)
     expect(c.aproveitamentoRealPct).toBeCloseTo(65.8, 0)
+  })
+
+  it('Serra do Mel 2 a 100%: 216,5 MWh / 54,1 MW nominais e 63,9% no ano real', () => {
+    const { corte, serie } = ler('RNSDM2_0')
+    const c = cenario(corte, serie, 100)
+    expect(c.cargaMw).toBeCloseTo(76.21, 1)
+    expect(c.bessMwh).toBeCloseTo(216.5, 0)
+    expect(c.bessMw).toBeCloseTo(54.13, 1)
+    expect(c.aproveitamentoRealPct).toBeCloseTo(63.9, 0)
+  })
+
+  it('acima do limiar a energia dimensiona: a parte útil (DoD) cobre exatamente C', () => {
+    const { corte } = ler('RNSDM2_0')
+    const p = carga(corte, 100)
+    expect(DOD * bess4h(corte, p).energia).toBeCloseTo(capacidade(corte, p), 6)
+  })
+
+  it('o DoD escolhido escala a energia nominal quando a energia dimensiona', () => {
+    const { corte, serie } = ler('RNSDM2_0')
+    const p = carga(corte, 100)
+    expect(0.9 * bess4h(corte, p, 0.9).energia).toBeCloseTo(capacidade(corte, p), 6)
+    expect(cenario(corte, serie, 100, 1).bessMwh).toBeCloseTo(capacidade(corte, p), 6)
+    expect(cenario(corte, serie, 100).bessMwh).toBeCloseTo(cenario(corte, serie, 100, DOD).bessMwh, 9)
   })
 
   it('abaixo do limiar a potência dimensiona: energia = 4 × pior déficit', () => {
@@ -53,13 +76,13 @@ describe('Cenário 2 — carga + BESS de 4 h', () => {
     const b = bess4h(corte, p)
     expect(b.potencia).toBeCloseTo(p - Math.min(...corte), 6)
     expect(b.energia).toBeCloseTo(4 * b.potencia, 6)
-    expect(b.energia).toBeGreaterThan(capacidade(corte, p))
+    expect(DOD * b.energia).toBeGreaterThan(capacidade(corte, p))
   })
 
   it('o despacho do dia típico atende a carga nas 24 h e fecha o balanço', () => {
     const { corte } = ler('RNMTV_0')
     const p = carga(corte, 80)
-    const d = despachoDiaTipico(corte, p, bess4h(corte, p).energia)
+    const d = despachoDiaTipico(corte, p, DOD * bess4h(corte, p).energia)
     for (let h = 0; h < 24; h++) {
       expect(d.direto[h] + d.descarrega[h]).toBeCloseTo(p, 6)
       expect(d.direto[h] + d.carrega[h] + d.sobra[h]).toBeCloseTo(corte[h], 6)

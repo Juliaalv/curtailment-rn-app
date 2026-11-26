@@ -122,6 +122,9 @@ function Marca({ x, y, r, tipo }: { x: number; y: number; r: number; tipo: Tipo 
   )
 }
 
+/** Quantos dos maiores clusters ficam rotulados no mapa mesmo sem hover. */
+const N_ROTULOS_FIXOS = 5
+
 interface MapaEstadoProps {
   malhas: Malhas
   clusters: ClusterResumo[]
@@ -138,7 +141,10 @@ export function MapaEstado({ malhas, clusters, destaque, onDestaque, onEscolher 
   const raio = (c: ClusterResumo) => 4 + 13 * Math.sqrt(c.corte_anual_gwh / maior)
   // Os maiores primeiro, para os pequenos ficarem por cima e continuarem clicáveis.
   const ordenados = [...clusters].sort((a, b) => b.corte_anual_gwh - a.corte_anual_gwh)
-  const rotulados = ordenados.filter((c) => c.id === destaque)
+  // Os maiores sempre rotulados (só o nome); o destacado leva também o valor e vai por último, por cima.
+  const fixos = ordenados.slice(0, N_ROTULOS_FIXOS).filter((c) => c.id !== destaque)
+  const ativo = ordenados.find((c) => c.id === destaque)
+  const rotulados = ativo ? [...fixos, ativo] : fixos
 
   return (
     <svg className="mapa" viewBox={`0 0 ${L} ${altura}`} role="group" aria-label="Clusters no mapa do Rio Grande do Norte">
@@ -186,11 +192,13 @@ export function MapaEstado({ malhas, clusters, destaque, onDestaque, onEscolher 
           <text
             key={c.id}
             className="rotulo-mapa"
+            data-ativo={c === ativo}
             x={esquerda ? x - r - 6 : x + r + 6}
             y={y + 4}
             textAnchor={esquerda ? 'end' : 'start'}
           >
-            {titulo(c.subestacao)} · {n1(c.corte_anual_gwh, 0)} GWh
+            {titulo(c.subestacao)}
+            {c === ativo && ` · ${n1(c.corte_anual_gwh, 0)} GWh`}
           </text>
         )
       })}

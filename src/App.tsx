@@ -1,9 +1,10 @@
-import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { n1, titulo } from './formato'
-import { GraficoCurvaBess, GraficoDespacho, GraficoDiaTipico, Legenda } from './Graficos'
-import { aproveitamento, cenario, desempenhoReal, despachoDiaTipico } from './lib/cenarios'
+import { GraficoDespacho, GraficoDiaTipico, Legenda } from './Graficos'
+import { DOD, aproveitamento, cenario, desempenhoReal, despachoDiaTipico } from './lib/cenarios'
 import { type ClusterResumo, type Malhas, MapaBrasil, MapaEstado, type Tipo } from './Mapa'
 import { SERIES_DESPACHO, SERIES_FONTE } from './series'
+import { NOME_UF, UF_DISPONIVEL } from './ufs'
 
 interface Cluster extends ClusterResumo {
   dia_tipico_solar: number[]
@@ -13,6 +14,8 @@ interface Cluster extends ClusterResumo {
 
 const NOME_TIPO: Record<Tipo, string> = { hibrido: 'Solar + eólico', solar: 'Solar', eolico: 'Eólico' }
 const N_NIVEIS = 8
+const DOD_MIN = 50
+const DOD_MAX = 100
 
 interface TileProps {
   rotulo: string
@@ -52,18 +55,20 @@ function Painel({ cluster }: { cluster: Cluster }) {
   // Cenário 2: o alvo vai do Cenário 1 a 100% do corte do dia típico.
   const alvoMin = Math.ceil(c1.tipico * 10) / 10
   const [alvo, setAlvo] = useState(() => Math.round((alvoMin + 100) / 2))
-  const c2 = useMemo(() => cenario(corte, cluster.serie, alvo), [corte, cluster, alvo])
-  const despacho = useMemo(() => despachoDiaTipico(corte, c2.cargaMw, c2.bessMwh), [corte, c2])
+  /** Posição de um alvo no trilho do slider, de 0 a 1. */
+  const fracao = (v: number) => Math.min(1, Math.max(0, (v - alvoMin) / Math.max(100 - alvoMin, 0.1)))
+  // Profundidade de descarga (%): quanto da capacidade nominal do BESS é útil.
+  const [dodPct, setDodPct] = useState(DOD * 100)
+  const dod = dodPct / 100
+  const fracaoDod = (v: number) => (v - DOD_MIN) / (DOD_MAX - DOD_MIN)
+  const c2 = useMemo(() => cenario(corte, cluster.serie, alvo, dod), [corte, cluster, alvo, dod])
+  const despacho = useMemo(() => despachoDiaTipico(corte, c2.cargaMw, dod * c2.bessMwh), [corte, c2, dod])
   const niveis = useMemo(
     () =>
       Array.from({ length: N_NIVEIS }, (_, i) =>
-        cenario(corte, cluster.serie, c1.tipico + ((100 - c1.tipico) * i) / (N_NIVEIS - 1)),
+        cenario(corte, cluster.serie, c1.tipico + ((100 - c1.tipico) * i) / (N_NIVEIS - 1), dod),
       ),
-    [corte, cluster, c1],
-  )
-  const curva = useMemo(
-    () => Array.from({ length: 41 }, (_, i) => cenario(corte, [], c1.tipico + ((100 - c1.tipico) * i) / 40)),
-    [corte, c1],
+    [corte, cluster, c1, dod],
   )
 
   const series = SERIES_FONTE.filter((s) => (s.chave === 'solar' ? cluster.n_solar : cluster.n_eolico) > 0)
@@ -123,24 +128,57 @@ function Painel({ cluster }: { cluster: Cluster }) {
         <h3>Cenário 2 — carga maior com BESS de 4 h</h3>
         <p className="descricao">
           A carga sobe acima do Cenário 1 e a bateria cobre as horas em que o corte não basta. O banco é sempre
-          de 4 h: a potência é a maior entre o pior déficit de uma hora e a energia mínima dividida por 4.
+          de 4 h: a potência é a maior entre o pior déficit de uma hora e a energia mínima dividida por 4 × DoD.
+          A capacidade mostrada é a nominal; com profundidade de descarga de {n1(dodPct, 0)}%, só{' '}
+          {n1(dodPct, 0)}% dela é útil.
         </p>
 
         <div className="alvo">
           <label htmlFor="alvo">Alvo de aproveitamento do corte do dia típico</label>
           <output htmlFor="alvo">{n1(alvo)}%</output>
-          <input
-            id="alvo"
-            type="range"
-            min={alvoMin}
-            max={100}
-            step={0.1}
-            value={alvo}
-            onChange={(e) => setAlvo(Number(e.target.value))}
-          />
+          <div className="trilho" style={{ '--pct': fracao(alvo) } as CSSProperties}>
+            <div className="marcas" aria-hidden="true">
+              {niveis.map((n) => (
+                <i
+                  key={n.alvoPct}
+                  data-passou={n.alvoPct <= alvo}
+                  style={{ '--pct': fracao(n.alvoPct) } as CSSProperties}
+                />
+              ))}
+            </div>
+            <input
+              id="alvo"
+              type="range"
+              min={alvoMin}
+              max={100}
+              step={0.1}
+              value={alvo}
+              onChange={(e) => setAlvo(Number(e.target.value))}
+            />
+          </div>
           <div className="escala">
             <span>Cenário 1 ({n1(alvoMin)}%)</span>
             <span>100%</span>
+          </div>
+        </div>
+
+        <div className="alvo">
+          <label htmlFor="dod">Profundidade de descarga (DoD) do BESS</label>
+          <output htmlFor="dod">{n1(dodPct, 0)}%</output>
+          <div className="trilho" style={{ '--pct': fracaoDod(dodPct) } as CSSProperties}>
+            <input
+              id="dod"
+              type="range"
+              min={DOD_MIN}
+              max={DOD_MAX}
+              step={5}
+              value={dodPct}
+              onChange={(e) => setDodPct(Number(e.target.value))}
+            />
+          </div>
+          <div className="escala">
+            <span>{DOD_MIN}%</span>
+            <span>{DOD_MAX}%</span>
           </div>
         </div>
 
@@ -164,12 +202,6 @@ function Painel({ cluster }: { cluster: Cluster }) {
         </div>
 
         <div className="cartao">
-          <h4>Capacidade do BESS conforme o alvo</h4>
-          <p className="subtitulo">MWh de um banco de 4 h; o ponto marca o alvo escolhido</p>
-          <GraficoCurvaBess curva={curva} atual={c2} />
-        </div>
-
-        <div className="cartao">
           <h4>Níveis do Cenário 2</h4>
           <p className="subtitulo">Do Cenário 1 a 100%; clique em uma linha para usar o alvo</p>
           <table>
@@ -183,15 +215,31 @@ function Painel({ cluster }: { cluster: Cluster }) {
               </tr>
             </thead>
             <tbody>
-              {niveis.map((n) => (
-                <tr key={n.alvoPct} onClick={() => setAlvo(Math.max(alvoMin, Math.round(n.alvoPct * 10) / 10))}>
-                  <td>{n1(n.alvoPct)}</td>
+              {niveis.map((n) => {
+                const usar = () => setAlvo(Math.max(alvoMin, Math.round(n.alvoPct * 10) / 10))
+                const ativo = Math.abs(n.alvoPct - alvo) < 0.1
+                return (
+                <tr key={n.alvoPct} data-ativo={ativo} onClick={usar}>
+                  <td className="rotulo-linha">
+                    <button
+                      type="button"
+                      aria-pressed={ativo}
+                      aria-label={`Usar alvo de ${n1(n.alvoPct)}%`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        usar()
+                      }}
+                    >
+                      {n1(n.alvoPct)}
+                    </button>
+                  </td>
                   <td>{n1(n.cargaMw)}</td>
                   <td>{n1(n.bessMwh)}</td>
                   <td>{n1(n.bessMw)}</td>
                   <td>{n1(n.aproveitamentoRealPct)}</td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -229,6 +277,9 @@ function Moldura({ children }: { children: ReactNode }) {
   return (
     <>
       <header className="site-header">
+        <a className="marca" href="#/">
+          Curtailment &amp; BESS <span>· Rio Grande do Norte</span>
+        </a>
         <nav aria-label="Seções">
           <a href={FONTE_ONS} target="_blank" rel="noreferrer">
             Dados
@@ -260,6 +311,7 @@ function Inicio({ malhas, clusters }: { malhas: Malhas; clusters: ClusterResumo[
       anotacao: `${n1(total, 0)} GWh`,
     },
   }
+  const semDados = Object.keys(NOME_UF).length - Object.keys(UF_DISPONIVEL).length
 
   return (
     <main className="wrap">
@@ -270,6 +322,50 @@ function Inicio({ malhas, clusters }: { malhas: Malhas; clusters: ClusterResumo[
           Cenários de carga e BESS para aproveitar a energia cortada, por cluster de usinas. Escolha um estado.
         </p>
 
+        <p className="bignum">
+          {n1(total, 0)}
+          <span className="unidade"> GWh</span>
+          <small>
+            cortados em 2025 no Rio Grande do Norte · {clusters.length} clusters
+          </small>
+        </p>
+
+        <table className="states">
+          <thead>
+            <tr>
+              <th>Estado</th>
+              <th className="num">Clusters</th>
+              <th className="num">GWh cortados</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              data-uf="24"
+              data-ativo={destaque === '24'}
+              onClick={() => ir('/rn')}
+              onMouseEnter={() => setDestaque('24')}
+              onMouseLeave={() => setDestaque(undefined)}
+            >
+              <td>
+                <a
+                  href="#/rn"
+                  onFocus={() => setDestaque('24')}
+                  onBlur={() => setDestaque(undefined)}
+                >
+                  {NOME_UF[24]}
+                </a>
+              </td>
+              <td className="num">{clusters.length}</td>
+              <td className="num corte">{n1(total, 0)}</td>
+            </tr>
+            <tr className="nodata">
+              <td>Outros {semDados} estados</td>
+              <td className="num">—</td>
+              <td className="num">—</td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="nota-tabela">Os demais estados ainda não têm dados processados.</p>
       </div>
 
       <div className="map">
@@ -304,9 +400,7 @@ function Estado({ malhas, clusters }: { malhas: Malhas; clusters: ClusterResumo[
   return (
     <main className="wrap">
       <header className="intro-largo">
-        <a className="voltar" href="#/">
-          ← Brasil
-        </a>
+        <Trilha passos={[{ rotulo: 'Brasil', href: '#/' }, { rotulo: 'Rio Grande do Norte' }]} />
         <p className="eyebrow">Curtailment · RN · 2025</p>
         <h1>Rio Grande do Norte</h1>
         <p className="lede">
@@ -372,14 +466,66 @@ function Estado({ malhas, clusters }: { malhas: Malhas; clusters: ClusterResumo[
   )
 }
 
-/** Página só do cluster: as informações, com a volta para o mapa do estado. */
-function PaginaCluster({ id }: { id: string }) {
+/** Trilha de navegação: os passos com href são links; o último é a página atual. */
+function Trilha({ passos }: { passos: { rotulo: string; href?: string }[] }) {
+  return (
+    <nav className="trilha" aria-label="Você está em">
+      <ol>
+        {passos.map((p) => (
+          <li key={p.rotulo}>
+            {p.href ? <a href={p.href}>{p.rotulo}</a> : <span aria-current="page">{p.rotulo}</span>}
+          </li>
+        ))}
+      </ol>
+    </nav>
+  )
+}
+
+/** Blocos cinza no lugar do conteúdo enquanto os dados carregam. */
+function Esqueleto({ variante }: { variante: 'inicio' | 'cluster' }) {
+  const bloco = (w: string, h: number, mt = 0) => (
+    <div className="esqueleto" style={{ width: w, height: h, marginTop: mt }} />
+  )
+  if (variante === 'inicio')
+    return (
+      <main className="wrap" aria-busy="true" aria-label="Carregando">
+        <div className="intro">
+          {bloco('40%', 14)}
+          {bloco('90%', 44, 16)}
+          {bloco('100%', 16, 16)}
+          {bloco('80%', 16, 8)}
+          {bloco('70%', 64, 32)}
+          {bloco('100%', 120, 40)}
+        </div>
+        <div className="map">{bloco('100%', 480)}</div>
+      </main>
+    )
+  return (
+    <div aria-busy="true" aria-label="Carregando">
+      {bloco('20%', 14)}
+      {bloco('50%', 44, 16)}
+      {bloco('35%', 16, 16)}
+      <div className="tiles">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i}>
+            {bloco('60%', 13)}
+            {bloco('80%', 32, 8)}
+          </div>
+        ))}
+      </div>
+      {bloco('100%', 300, 64)}
+    </div>
+  )
+}
+
+/** Página só do cluster: as informações, com a trilha de volta para o mapa do estado. */
+function PaginaCluster({ id, nome }: { id: string; nome: string }) {
   const [cluster, setCluster] = useState<Cluster>()
 
   useEffect(() => {
     window.scrollTo(0, 0)
     let atual = true
-    fetch(`/data/${id}.json`)
+    fetch(`${import.meta.env.BASE_URL}data/${id}.json`)
       .then((r) => r.json())
       .then((c: Cluster) => atual && setCluster(c))
     return () => {
@@ -389,10 +535,14 @@ function PaginaCluster({ id }: { id: string }) {
 
   return (
     <main className="pagina">
-      <a className="voltar" href="#/rn">
-        ← Rio Grande do Norte
-      </a>
-      {cluster?.id === id && <Painel key={id} cluster={cluster} />}
+      <Trilha
+        passos={[
+          { rotulo: 'Brasil', href: '#/' },
+          { rotulo: 'Rio Grande do Norte', href: '#/rn' },
+          { rotulo: titulo(nome) },
+        ]}
+      />
+      {cluster?.id === id ? <Painel key={id} cluster={cluster} /> : <Esqueleto variante="cluster" />}
     </main>
   )
 }
@@ -403,18 +553,24 @@ export default function App() {
   const rota = useRota()
 
   useEffect(() => {
-    fetch('/data/clusters.json')
+    fetch(`${import.meta.env.BASE_URL}data/clusters.json`)
       .then((r) => r.json())
       .then((lista: ClusterResumo[]) => setClusters(lista.sort((a, b) => b.corte_anual_gwh - a.corte_anual_gwh)))
-    fetch('/data/mapa.json')
+    fetch(`${import.meta.env.BASE_URL}data/mapa.json`)
       .then((r) => r.json())
       .then(setMalhas)
   }, [])
 
-  if (!clusters || !malhas) return null
+  if (!clusters || !malhas)
+    return (
+      <Moldura>
+        <Esqueleto variante="inicio" />
+      </Moldura>
+    )
+  const escolhido = rota.cluster ? clusters.find((c) => c.id === rota.cluster) : undefined
   let pagina
-  if (rota.estado !== 'rn') pagina = <Inicio malhas={malhas} clusters={clusters} />
-  else if (rota.cluster && clusters.some((c) => c.id === rota.cluster)) pagina = <PaginaCluster id={rota.cluster} />
-  else pagina = <Estado malhas={malhas} clusters={clusters} />
+  if (rota.estado !== 'rn') pagina = <Inicio key="inicio" malhas={malhas} clusters={clusters} />
+  else if (escolhido) pagina = <PaginaCluster key={escolhido.id} id={escolhido.id} nome={escolhido.subestacao} />
+  else pagina = <Estado key="rn" malhas={malhas} clusters={clusters} />
   return <Moldura>{pagina}</Moldura>
 }

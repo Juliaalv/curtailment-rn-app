@@ -2,6 +2,7 @@
 // O dia típico (24 valores, MWh por hora) dimensiona; a série do ano (8.760 valores) só mede.
 
 export const DURACAO_H = 4 // BESS comercial: a energia é 4 × a potência
+export const DOD = 0.8 // profundidade de descarga padrão: só 80% da capacidade nominal é útil
 
 const soma = (v: number[]) => v.reduce((a, b) => a + b, 0)
 
@@ -30,13 +31,14 @@ export function capacidade(corte: number[], p: number) {
 /** Maior falta de uma hora (MW): a potência que o BESS precisa entregar no pico. */
 export const piorDeficit = (corte: number[], p: number) => Math.max(0, ...corte.map((e) => p - e))
 
-/** BESS de 4 h que sustenta a carga de p MW: vale o mais exigente entre potência e energia. */
-export function bess4h(corte: number[], p: number) {
-  const potencia = Math.max(piorDeficit(corte, p), capacidade(corte, p) / DURACAO_H)
+/** BESS de 4 h (capacidade nominal) que sustenta a carga de p MW: vale o mais exigente entre
+ *  potência e energia. A energia útil, dod × 4 × potência, tem que cobrir a energia mínima. */
+export function bess4h(corte: number[], p: number, dod = DOD) {
+  const potencia = Math.max(piorDeficit(corte, p), capacidade(corte, p) / (dod * DURACAO_H))
   return { energia: DURACAO_H * potencia, potencia }
 }
 
-/** Aproveitamento (%) do corte do ano com a carga de p MW e um BESS de cap MWh, SOC contínuo. */
+/** Aproveitamento (%) do corte do ano com a carga de p MW e um BESS de cap MWh úteis, SOC contínuo. */
 export function desempenhoReal(serie: number[], p: number, cap: number) {
   let soc = 0
   let entregue = 0
@@ -63,7 +65,7 @@ export interface Despacho {
   sobra: number[] // continua sendo cortado
 }
 
-/** Opera o BESS hora a hora no dia típico cíclico, começando na hora em que o banco está vazio. */
+/** Opera o BESS (cap MWh úteis) hora a hora no dia típico cíclico, começando na hora em que o banco está vazio. */
 export function despachoDiaTipico(corte: number[], p: number, cap: number): Despacho {
   const net = corte.map((e) => e - p)
   let acumulado = 0
@@ -102,15 +104,16 @@ export interface Cenario {
   aproveitamentoRealPct: number
 }
 
-/** Carga, BESS de 4 h e aproveitamento no ano real para um alvo de aproveitamento do dia típico. */
-export function cenario(corte: number[], serie: number[], alvoPct: number): Cenario {
+/** Carga, BESS de 4 h e aproveitamento no ano real para um alvo de aproveitamento do dia típico.
+ *  dod é a profundidade de descarga (0–1): a fração da capacidade nominal que é útil. */
+export function cenario(corte: number[], serie: number[], alvoPct: number, dod = DOD): Cenario {
   const p = carga(corte, alvoPct)
-  const { energia, potencia } = bess4h(corte, p)
+  const { energia, potencia } = bess4h(corte, p, dod)
   return {
     alvoPct,
     cargaMw: p,
     bessMwh: energia,
     bessMw: potencia,
-    aproveitamentoRealPct: desempenhoReal(serie, p, energia),
+    aproveitamentoRealPct: desempenhoReal(serie, p, dod * energia),
   }
 }

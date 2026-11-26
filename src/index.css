@@ -36,6 +36,10 @@
   --axis: #b4c0cd;
   --border: var(--rule);
   --accent-wash: rgba(19, 81, 180, 0.06);
+  --accent-wash-forte: rgba(19, 81, 180, 0.1);
+  --header-bg: var(--primary-dark);
+  /* Anel de foco: âmbar escuro, ~5:1 sobre o papel (o âmbar claro fica no limite de 3:1). */
+  --focus: #b45309;
 
   --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-serif: 'Source Serif 4', Georgia, serif;
@@ -45,6 +49,42 @@
   line-height: 1.5;
   color: var(--ink);
   background: var(--paper);
+}
+
+/* Tema escuro ("sala de controle"): só troca as variáveis. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --paper: #0b1622;
+    --band: #101d2b;
+    --surface: #0f1b28;
+    --ink: #e6edf5;
+    --ink-2: #9fb0c3;
+    --rule: #263a4f;
+    --land: #1b2a3a;
+    --land-line: #2b3e52;
+
+    --primary: #4da3ff;
+    --primary-dark: #8cc4ff;
+    --accent: #ffb020;
+    --accent-text: #ffb020;
+    --header-bg: #06101a;
+    --focus: #ffb020;
+
+    --c-eolico: #2bb3bd;
+    --c-solar: #f2c14e;
+    --c-bess: #9b87f5;
+    --c-direto: #4da3ff;
+    --c-descarga: #9b87f5;
+    --c-carrega: #5f4bb6;
+    --c-sobra: #ffb020;
+
+    --grid: #1c2b3b;
+    --axis: #3a4f66;
+    --accent-wash: rgba(77, 163, 255, 0.08);
+    --accent-wash-forte: rgba(77, 163, 255, 0.16);
+  }
 }
 
 * {
@@ -69,7 +109,7 @@ a {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -86,12 +126,12 @@ a {
 .site-header {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 16px;
   height: 56px;
   padding: 0 max(32px, calc((100% - 1376px) / 2));
   color: #fff;
-  background: var(--primary-dark);
+  background: var(--header-bg);
 }
 
 .site-header .marca {
@@ -180,7 +220,7 @@ a {
 }
 
 .pagina {
-  max-width: 1440px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 48px 32px 0;
 }
@@ -213,16 +253,66 @@ h1,
   font-variant-numeric: tabular-nums lining-nums;
 }
 
-.voltar {
-  display: inline-block;
-  margin-bottom: 16px;
+.trilha ol {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+  padding: 0;
   font-size: 14px;
+  list-style: none;
+  color: var(--ink-2);
+}
+
+.trilha li + li::before {
+  content: '›';
+  margin: 0 8px;
+  color: var(--axis);
+}
+
+.trilha a {
   color: var(--primary);
   text-decoration: none;
 }
 
-.voltar:hover {
+.trilha a:hover {
   text-decoration: underline;
+}
+
+.trilha [aria-current] {
+  color: var(--ink);
+}
+
+/* ── Transição entre páginas e carregamento ── */
+.wrap,
+.pagina {
+  animation: aparecer 0.15s ease-out;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.esqueleto {
+  max-width: 100%;
+  background: var(--band);
+  animation: pulsar 1.4s ease-in-out infinite;
+}
+
+@keyframes pulsar {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wrap,
+  .pagina,
+  .esqueleto {
+    animation: none;
+  }
 }
 
 .bignum {
@@ -252,7 +342,7 @@ h1,
 
 /* ── Tabela de estados ── */
 table.states {
-  margin-top: 48px;
+  margin-top: 40px;
   font-size: 15px;
 }
 
@@ -321,7 +411,7 @@ table.states tr.nodata td {
 }
 
 .uf {
-  stroke: #fff;
+  stroke: var(--paper);
   stroke-width: 0.75;
   transition: fill 0.15s;
 }
@@ -342,7 +432,7 @@ table.states tr.nodata td {
 }
 
 .uf.com-dados:focus-visible {
-  stroke: var(--accent);
+  stroke: var(--focus);
   stroke-width: 2.5;
 }
 
@@ -385,7 +475,7 @@ table.states tr.nodata td {
 
 .cluster .aro {
   fill: none;
-  stroke: #fff;
+  stroke: var(--paper);
   stroke-width: 1.5;
   transition: stroke 0.12s;
 }
@@ -396,20 +486,26 @@ table.states tr.nodata td {
 }
 
 .cluster:focus-visible .aro {
-  stroke: var(--accent);
+  stroke: var(--focus);
   stroke-width: 2.5;
 }
 
 .rotulo-mapa {
-  font-size: 13px;
-  font-weight: 600;
-  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  fill: var(--ink-2);
   stroke: var(--paper);
   stroke-width: 4;
   stroke-linejoin: round;
   paint-order: stroke;
   pointer-events: none;
   font-variant-numeric: tabular-nums;
+}
+
+.rotulo-mapa[data-ativo='true'] {
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--ink);
 }
 
 .legenda {
@@ -592,7 +688,6 @@ table.states tr.nodata td {
   grid-template-columns: 1fr auto;
   align-items: baseline;
   gap: 4px 16px;
-  max-width: 640px;
   margin-top: 24px;
 }
 
@@ -608,10 +703,108 @@ table.states tr.nodata td {
   font-variant-numeric: tabular-nums lining-nums;
 }
 
-.alvo input {
+.trilho {
+  --thumb: 18px;
+  position: relative;
   grid-column: 1 / -1;
+}
+
+.trilho input {
+  position: relative;
+  display: block;
   width: 100%;
-  accent-color: var(--primary);
+  height: 24px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.trilho input:focus-visible {
+  outline: none;
+}
+
+.trilho input::-webkit-slider-runnable-track {
+  height: 4px;
+  background: linear-gradient(
+    to right,
+    var(--primary) calc(var(--pct) * 100%),
+    var(--rule) calc(var(--pct) * 100%)
+  );
+}
+
+.trilho input::-moz-range-track {
+  height: 4px;
+  background: var(--rule);
+}
+
+.trilho input::-moz-range-progress {
+  height: 4px;
+  background: var(--primary);
+}
+
+.trilho input::-webkit-slider-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: calc(2px - var(--thumb) / 2);
+  background: var(--paper);
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: transform 0.12s;
+}
+
+.trilho input::-moz-range-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  box-sizing: border-box;
+  background: var(--paper);
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  transition: transform 0.12s;
+}
+
+.trilho input:hover::-webkit-slider-thumb,
+.trilho input:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+
+.trilho input:hover::-moz-range-thumb,
+.trilho input:active::-moz-range-thumb {
+  transform: scale(1.15);
+}
+
+.trilho input:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.trilho input:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Marcas dos níveis da tabela, alinhadas ao centro do polegar. */
+.marcas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.marcas i {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--pct));
+  width: 2px;
+  height: 10px;
+  background: var(--rule);
+  transform: translate(-50%, -50%);
+}
+
+.marcas i[data-passou='true'] {
+  background: var(--primary);
 }
 
 .alvo .escala {
@@ -653,6 +846,33 @@ tbody tr {
 
 tbody tr:hover {
   background: var(--accent-wash);
+}
+
+th:first-child,
+td.rotulo-linha {
+  text-align: left;
+}
+
+td.rotulo-linha button {
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+tbody tr[data-ativo='true'] {
+  background: var(--accent-wash-forte);
+}
+
+tbody tr[data-ativo='true'] td {
+  color: var(--primary-dark);
+}
+
+tbody tr[data-ativo='true'] td:first-child {
+  box-shadow: inset 3px 0 0 var(--primary);
 }
 
 .aviso {

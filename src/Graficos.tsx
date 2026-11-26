@@ -2,16 +2,13 @@ import {
   Bar,
   CartesianGrid,
   ComposedChart,
-  Line,
-  LineChart,
-  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
-import type { Cenario, Despacho } from './lib/cenarios'
+import type { Despacho } from './lib/cenarios'
 import { n1 } from './formato'
 import { SERIES_DESPACHO, type Serie } from './series'
 
@@ -117,47 +114,4 @@ export function GraficoDespacho({ despacho, cargaMw }: { despacho: Despacho; car
     sobra: despacho.sobra[hora],
   }))
   return <Barras24h dados={dados} series={SERIES_DESPACHO} cargaMw={cargaMw} />
-}
-
-const SERIE_BESS: Serie[] = [{ chave: 'bessMwh', nome: 'Capacidade do BESS', cor: 'var(--c-bess)' }]
-
-/** Capacidade do BESS de 4 h em função do alvo, com o alvo escolhido marcado. */
-export function GraficoCurvaBess({ curva, atual }: { curva: Cenario[]; atual: Cenario }) {
-  return (
-    <ResponsiveContainer width="100%" height={260}>
-      <LineChart data={curva} margin={{ top: 12, right: 16, bottom: 4, left: 0 }}>
-        <CartesianGrid vertical={false} stroke="var(--grid)" />
-        <XAxis
-          dataKey="alvoPct"
-          type="number"
-          domain={['dataMin', 100]}
-          tick={eixo}
-          tickLine={false}
-          axisLine={{ stroke: 'var(--axis)' }}
-          tickFormatter={(v) => `${n1(v, 0)}%`}
-        />
-        <YAxis tick={eixo} tickLine={false} axisLine={false} width={48} tickFormatter={(v) => n1(v, 0)} />
-        <Tooltip
-          cursor={{ stroke: 'var(--axis)' }}
-          content={<Dica series={SERIE_BESS} titulo={(a) => `Alvo de ${n1(Number(a))}%`} unidade="MWh" />}
-        />
-        <Line
-          dataKey="bessMwh"
-          stroke="var(--c-bess)"
-          strokeWidth={2}
-          dot={false}
-          activeDot={{ r: 4, stroke: 'var(--surface)', strokeWidth: 2 }}
-          isAnimationActive={false}
-        />
-        <ReferenceDot
-          x={atual.alvoPct}
-          y={atual.bessMwh}
-          r={5}
-          fill="var(--c-bess)"
-          stroke="var(--surface)"
-          strokeWidth={2}
-        />
-      </LineChart>
-    </ResponsiveContainer>
-  )
 }
