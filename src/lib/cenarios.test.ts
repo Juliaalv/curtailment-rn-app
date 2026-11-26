@@ -88,6 +88,19 @@ describe('Cenário 2 — carga + BESS de 4 h', () => {
       expect(d.direto[h] + d.carrega[h] + d.sobra[h]).toBeCloseTo(corte[h], 6)
     }
   })
+
+  it('o SOC do despacho fica entre 0 e a energia útil, e a reserva cresce quando o DoD cai', () => {
+    const { corte } = ler('RNMTV_0')
+    const p = carga(corte, 80)
+    for (const dod of [0.6, 0.8, 1]) {
+      const { energia } = bess4h(corte, p, dod)
+      const d = despachoDiaTipico(corte, p, dod * energia)
+      expect(Math.min(...d.soc)).toBeGreaterThanOrEqual(-1e-9)
+      expect(Math.max(...d.soc)).toBeLessThanOrEqual(dod * energia + 1e-9)
+    }
+    const reserva = (dod: number) => (1 - dod) * bess4h(corte, p, dod).energia
+    expect(reserva(0.6)).toBeGreaterThan(reserva(0.8))
+  })
 })
 
 describe('casos de borda', () => {

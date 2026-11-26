@@ -11,7 +11,7 @@ import {
 import type { Despacho } from './lib/cenarios'
 import { n1 } from './formato'
 import { useIdioma } from './i18n'
-import { seriesDespacho, type Serie } from './series'
+import { seriesDespacho, seriesSoc, type Serie } from './series'
 
 const eixo = { fontSize: 12, fill: 'var(--muted)' }
 
@@ -64,8 +64,17 @@ function Dica({ active, label, payload, series, titulo, unidade }: DicaProps) {
   )
 }
 
-/** Barras empilhadas das 24 h do dia típico, com a linha tracejada da carga. */
-function Barras24h({ dados, series, cargaMw }: { dados: object[]; series: Serie[]; cargaMw: number }) {
+interface Barras24hProps {
+  dados: object[]
+  series: Serie[]
+  /** Altura da linha tracejada: a carga, ou a capacidade nominal no gráfico de SOC. */
+  linha: number
+  /** Topo do eixo y; sem ele o eixo se ajusta às barras. */
+  yMax?: number
+}
+
+/** Barras empilhadas das 24 h do dia típico, com uma linha tracejada de referência. */
+function Barras24h({ dados, series, linha, yMax }: Barras24hProps) {
   return (
     <ResponsiveContainer width="100%" height={300}>
       <ComposedChart data={dados} margin={{ top: 12, right: 12, bottom: 4, left: 0 }}>
@@ -78,7 +87,14 @@ function Barras24h({ dados, series, cargaMw }: { dados: object[]; series: Serie[
           interval={1}
           tickFormatter={(h) => `${h}h`}
         />
-        <YAxis tick={eixo} tickLine={false} axisLine={false} width={48} tickFormatter={(v) => n1(v, 0)} />
+        <YAxis
+          tick={eixo}
+          tickLine={false}
+          axisLine={false}
+          width={48}
+          domain={yMax ? [0, yMax] : undefined}
+          tickFormatter={(v) => n1(v, 0)}
+        />
         <Tooltip
           cursor={{ fill: 'var(--accent-wash)' }}
           content={<Dica series={series} titulo={(h) => `${h}h – ${Number(h) + 1}h`} unidade="MWh" />}
@@ -95,7 +111,7 @@ function Barras24h({ dados, series, cargaMw }: { dados: object[]; series: Serie[
             isAnimationActive={false}
           />
         ))}
-        {cargaMw > 0 && <ReferenceLine y={cargaMw} stroke="var(--ink)" strokeDasharray="5 4" strokeWidth={1.5} />}
+        {linha > 0 && <ReferenceLine y={linha} stroke="var(--ink)" strokeDasharray="5 4" strokeWidth={1.5} />}
       </ComposedChart>
     </ResponsiveContainer>
   )
@@ -103,7 +119,7 @@ function Barras24h({ dados, series, cargaMw }: { dados: object[]; series: Serie[
 
 export function GraficoDiaTipico(props: { solar: number[]; eolico: number[]; series: Serie[]; cargaMw: number }) {
   const dados = props.solar.map((s, hora) => ({ hora, solar: s, eolico: props.eolico[hora] }))
-  return <Barras24h dados={dados} series={props.series} cargaMw={props.cargaMw} />
+  return <Barras24h dados={dados} series={props.series} linha={props.cargaMw} />
 }
 
 export function GraficoDespacho({ despacho, cargaMw }: { despacho: Despacho; cargaMw: number }) {
@@ -115,5 +131,14 @@ export function GraficoDespacho({ despacho, cargaMw }: { despacho: Despacho; car
     carrega: despacho.carrega[hora],
     sobra: despacho.sobra[hora],
   }))
-  return <Barras24h dados={dados} series={seriesDespacho(t)} cargaMw={cargaMw} />
+  return <Barras24h dados={dados} series={seriesDespacho(t)} linha={cargaMw} />
+}
+
+/** Energia no banco hora a hora, sobre a capacidade nominal: a faixa de baixo é a reserva
+ *  (1 − DoD) que nunca é descarregada; o que fica acima dela é a energia útil. */
+export function GraficoSoc({ soc, energiaNominal, dod }: { soc: number[]; energiaNominal: number; dod: number }) {
+  const { t } = useIdioma()
+  const reserva = (1 - dod) * energiaNominal
+  const dados = soc.map((util, hora) => ({ hora, reserva, util }))
+  return <Barras24h dados={dados} series={seriesSoc(t)} linha={energiaNominal} yMax={energiaNominal} />
 }

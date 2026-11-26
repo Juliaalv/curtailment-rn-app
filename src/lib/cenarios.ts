@@ -63,6 +63,7 @@ export interface Despacho {
   descarrega: number[] // devolvido pelo BESS
   carrega: number[] // excedente que carrega o BESS
   sobra: number[] // continua sendo cortado
+  soc: number[] // energia útil armazenada no fim de cada hora (MWh)
 }
 
 /** Opera o BESS (cap MWh úteis) hora a hora no dia típico cíclico, começando na hora em que o banco está vazio. */
@@ -80,7 +81,7 @@ export function despachoDiaTipico(corte: number[], p: number, cap: number): Desp
   })
 
   const zeros = () => new Array<number>(24).fill(0)
-  const d: Despacho = { direto: corte.map((e) => Math.min(e, p)), descarrega: zeros(), carrega: zeros(), sobra: zeros() }
+  const d: Despacho = { direto: corte.map((e) => Math.min(e, p)), descarrega: zeros(), carrega: zeros(), sobra: zeros(), soc: zeros() }
   let soc = 0
   for (let k = 0; k < 24; k++) {
     const h = (inicio + k) % 24
@@ -92,6 +93,7 @@ export function despachoDiaTipico(corte: number[], p: number, cap: number): Desp
       d.descarrega[h] = Math.min(-net[h], soc)
       soc -= d.descarrega[h]
     }
+    d.soc[h] = soc
   }
   return d
 }

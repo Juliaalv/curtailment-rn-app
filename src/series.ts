@@ -17,3 +17,8 @@ export const seriesDespacho = (t: Textos): Serie[] => [
   { chave: 'carrega', nome: t.serieCarrega, cor: 'var(--c-carrega)' },
   { chave: 'sobra', nome: t.serieSobra, cor: 'var(--c-sobra)' },
 ]
+
+export const seriesSoc = (t: Textos): Serie[] => [
+  { chave: 'reserva', nome: t.serieReserva, cor: 'var(--axis)' },
+  { chave: 'util', nome: t.serieUtil, cor: 'var(--c-bess)' },
+]

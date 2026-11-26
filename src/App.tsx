@@ -1,10 +1,10 @@
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { n1, titulo } from './formato'
-import { GraficoDespacho, GraficoDiaTipico, Legenda } from './Graficos'
+import { GraficoDespacho, GraficoDiaTipico, GraficoSoc, Legenda } from './Graficos'
 import { DOD, aproveitamento, cenario, desempenhoReal, despachoDiaTipico } from './lib/cenarios'
 import { type ClusterResumo, type Malhas, MapaBrasil, MapaEstado } from './Mapa'
 import { type Idioma, setIdioma, useIdioma } from './i18n'
-import { seriesDespacho, seriesFonte } from './series'
+import { seriesDespacho, seriesFonte, seriesSoc } from './series'
 import { NOME_UF, UF_DISPONIVEL } from './ufs'
 
 interface Cluster extends ClusterResumo {
@@ -192,6 +192,15 @@ function Painel({ cluster }: { cluster: Cluster }) {
           <Legenda series={seriesDespacho(t)} linha={t.cargaFlat} />
           <GraficoDespacho despacho={despacho} cargaMw={c2.cargaMw} />
         </div>
+
+        {c2.bessMwh > 0 && (
+          <div className="cartao">
+            <h4>{t.graficoSoc}</h4>
+            <p className="subtitulo">{t.graficoSocSub(n1(c2.bessMw), n1(c2.bessMwh), n1(dodPct, 0))}</p>
+            <Legenda series={seriesSoc(t)} linha={t.capNominal} />
+            <GraficoSoc soc={despacho.soc} energiaNominal={c2.bessMwh} dod={dod} />
+          </div>
+        )}
 
         <div className="cartao">
           <h4>{t.niveis}</h4>
