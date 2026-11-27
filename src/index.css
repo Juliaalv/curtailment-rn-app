@@ -146,6 +146,7 @@ a {
 
 .site-header nav {
   display: flex;
+  align-items: center;
   gap: 24px;
   font-size: 14px;
 }
@@ -160,10 +161,6 @@ a {
   opacity: 1;
 }
 
-.site-header nav {
-  align-items: center;
-}
-
 .idiomas {
   display: flex;
   border: 1px solid rgb(255 255 255 / 0.4);
@@ -172,7 +169,7 @@ a {
 }
 
 .idiomas button {
-  padding: 3px 8px;
+  padding: 6px 10px;
   font: inherit;
   font-size: 12px;
   font-weight: 600;
@@ -213,8 +210,7 @@ a {
 }
 
 .site-footer p {
-  text-align: justify;
-  hyphens: auto;
+  max-width: 100ch;
 }
 
 .site-footer b {
@@ -254,7 +250,7 @@ a {
 }
 
 .pagina {
-  max-width: 1200px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 48px 32px 0;
 }
@@ -268,16 +264,14 @@ a {
   color: var(--ink-2);
 }
 
-h1,
-.cabecalho h2 {
+h1 {
   margin: 8px 0 12px;
   font: 600 40px/1.1 var(--font-serif);
   letter-spacing: -0.01em;
 }
 
 .lede {
-  text-align: justify;
-  hyphens: auto;
+  max-width: 68ch;
   color: var(--ink-2);
 }
 
@@ -636,10 +630,6 @@ table.states tr.nodata td {
 }
 
 /* ── Informações do cluster ── */
-.cabecalho .lede {
-  max-width: none;
-}
-
 .tiles {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -672,6 +662,14 @@ table.states tr.nodata td {
   color: var(--accent-text);
 }
 
+.tile[data-destaque='true'] {
+  border-left: 2px solid var(--primary);
+}
+
+.tile[data-destaque='true'] .valor {
+  color: var(--primary);
+}
+
 .tile .valor small {
   margin-left: 4px;
   font-size: 14px;
@@ -688,15 +686,19 @@ table.states tr.nodata td {
   margin-top: 64px;
 }
 
-.secao > h3 {
+.secao > h2 {
   padding-top: 16px;
   font: 600 25px/1.2 var(--font-serif);
   border-top: 2px solid var(--ink);
 }
 
-.secao > .descricao {
-  text-align: justify;
-  hyphens: auto;
+/* No Cenário 2 o título vai na coluna da esquerda e a linha fica no grid. */
+.c2-controles > h2 {
+  font: 600 25px/1.2 var(--font-serif);
+}
+
+.secao .descricao {
+  max-width: 68ch;
   margin-top: 8px;
   font-size: 15px;
   color: var(--ink-2);
@@ -706,7 +708,7 @@ table.states tr.nodata td {
   margin-top: 40px;
 }
 
-.cartao h4 {
+.cartao h3 {
   font-size: 16px;
   font-weight: 600;
 }
@@ -910,13 +912,56 @@ tbody tr[data-ativo='true'] td:first-child {
 }
 
 .aviso {
-  text-align: justify;
-  hyphens: auto;
+  max-width: 68ch;
   margin-top: 24px;
   padding-left: 12px;
   font-size: 14px;
   color: var(--ink-2);
-  border-left: 2px solid var(--primary);
+  border-left: 2px solid var(--axis);
+}
+
+.rolagem {
+  overflow-x: auto;
+}
+
+.erro {
+  padding: 24px 0;
+}
+
+.erro button {
+  margin-top: 12px;
+  padding: 8px 16px;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--primary);
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* ── Cenário 2: controles fixos à esquerda, gráficos à direita ── */
+.c2-grid {
+  padding-top: 16px;
+  border-top: 2px solid var(--ink);
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+  gap: 48px;
+  align-items: start;
+}
+
+.c2-controles {
+  position: sticky;
+  top: 16px;
+}
+
+.c2-controles .tiles {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Topo do primeiro gráfico alinhado com o título da coluna da esquerda. */
+.c2-graficos > .cartao:first-child {
+  margin-top: 0;
 }
 
 .tooltip {
@@ -966,6 +1011,15 @@ tbody tr[data-ativo='true'] td:first-child {
   .lista {
     max-height: 360px;
   }
+
+  .c2-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .c2-controles {
+    position: static;
+  }
 }
 
 @media (max-width: 600px) {
@@ -990,8 +1044,7 @@ tbody tr[data-ativo='true'] td:first-child {
     padding: 32px 16px 0;
   }
 
-  h1,
-  .cabecalho h2 {
+  h1 {
     font-size: 32px;
   }
 

@@ -172,7 +172,8 @@ export function MapaEstado({ malhas, clusters, destaque, onDestaque, onEscolher 
             key={c.id}
             className="cluster"
             role="link"
-            tabIndex={0}
+            // Fora da ordem do Tab: a lista ao lado é o caminho pelo teclado.
+            tabIndex={-1}
             aria-label={`${titulo(c.subestacao)}, ${n1(c.corte_anual_gwh, 0)} GWh`}
             data-ativo={c.id === destaque}
             onClick={() => onEscolher(c.id)}

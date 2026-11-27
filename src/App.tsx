@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { n1, titulo } from './formato'
 import { GraficoDespacho, GraficoDiaTipico, GraficoSoc, Legenda } from './Graficos'
 import { DOD, aproveitamento, cenario, desempenhoReal, despachoDiaTipico } from './lib/cenarios'
@@ -24,11 +24,13 @@ interface TileProps {
   nota?: string
   /** Valor de energia cortada: leva o acento âmbar. */
   corte?: boolean
+  /** Resultado principal do cenário: leva o acento azul. */
+  destaque?: boolean
 }
 
-function Tile({ rotulo, valor, unidade, nota, corte }: TileProps) {
+function Tile({ rotulo, valor, unidade, nota, corte, destaque }: TileProps) {
   return (
-    <div className="tile" data-corte={corte}>
+    <div className="tile" data-corte={corte} data-destaque={destaque}>
       <div className="rotulo">{rotulo}</div>
       <div className="valor">
         {valor}
@@ -62,6 +64,13 @@ function Painel({ cluster }: { cluster: Cluster }) {
   const [dodPct, setDodPct] = useState(DOD * 100)
   const dod = dodPct / 100
   const fracaoDod = (v: number) => (v - DOD_MIN) / (DOD_MAX - DOD_MIN)
+  /** Setas movem o alvo de 1 ponto (o passo de 0,1 é só para o arraste). */
+  const teclarAlvo = (e: KeyboardEvent<HTMLInputElement>) => {
+    const delta = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key]
+    if (!delta) return
+    e.preventDefault()
+    setAlvo((a) => Math.min(100, Math.max(alvoMin, Math.round((a + delta) * 10) / 10)))
+  }
   const c2 = useMemo(() => cenario(corte, cluster.serie, alvo, dod), [corte, cluster, alvo, dod])
   const despacho = useMemo(() => despachoDiaTipico(corte, c2.cargaMw, dod * c2.bessMwh), [corte, c2, dod])
   const niveis = useMemo(
@@ -82,7 +91,7 @@ function Painel({ cluster }: { cluster: Cluster }) {
     <article className="painel">
       <header className="cabecalho">
         <p className="eyebrow">Cluster · RN · 2025</p>
-        <h2>{titulo(cluster.subestacao)}</h2>
+        <h1>{titulo(cluster.subestacao)}</h1>
         <p className="lede">
           Cluster {cluster.id} · {t.tipo[cluster.tipo]} · {usinas.join(t.e)}
         </p>
@@ -96,7 +105,7 @@ function Painel({ cluster }: { cluster: Cluster }) {
       </div>
 
       <section className="secao">
-        <h3>{t.c1Titulo}</h3>
+        <h2>{t.c1Titulo}</h2>
         <p className="descricao">{t.c1Desc}</p>
         <div className="tiles">
           <Tile rotulo={t.cargaFixa} valor={n1(c1.p)} unidade="MW" />
@@ -107,7 +116,7 @@ function Painel({ cluster }: { cluster: Cluster }) {
           <p className="aviso">{t.c1Aviso}</p>
         )}
         <div className="cartao">
-          <h4>{t.graficoTipico}</h4>
+          <h3>{t.graficoTipico}</h3>
           <p className="subtitulo">{t.graficoTipicoSub}</p>
           <Legenda series={series.length > 1 ? series : []} linha={c1.p >= 0.05 ? t.cargaC1 : undefined} />
           <GraficoDiaTipico
@@ -120,132 +129,148 @@ function Painel({ cluster }: { cluster: Cluster }) {
       </section>
 
       <section className="secao">
-        <h3>{t.c2Titulo}</h3>
-        <p className="descricao">{t.c2Desc(n1(dodPct, 0))}</p>
+        <div className="c2-grid">
+          <div className="c2-controles">
+            <h2>{t.c2Titulo}</h2>
+            <p className="descricao">{t.c2Desc(n1(dodPct, 0))}</p>
 
-        <div className="alvo">
-          <label htmlFor="alvo">{t.alvoRotulo}</label>
-          <output htmlFor="alvo">{n1(alvo)}%</output>
-          <div className="trilho" style={{ '--pct': fracao(alvo) } as CSSProperties}>
-            <div className="marcas" aria-hidden="true">
-              {niveis.map((n) => (
-                <i
-                  key={n.alvoPct}
-                  data-passou={n.alvoPct <= alvo}
-                  style={{ '--pct': fracao(n.alvoPct) } as CSSProperties}
+            <div className="alvo">
+              <label htmlFor="alvo">{t.alvoRotulo}</label>
+              <output htmlFor="alvo">{n1(alvo)}%</output>
+              <div className="trilho" style={{ '--pct': fracao(alvo) } as CSSProperties}>
+                <div className="marcas" aria-hidden="true">
+                  {niveis.map((n) => (
+                    <i
+                      key={n.alvoPct}
+                      data-passou={n.alvoPct <= alvo}
+                      style={{ '--pct': fracao(n.alvoPct) } as CSSProperties}
+                    />
+                  ))}
+                </div>
+                <input
+                  id="alvo"
+                  type="range"
+                  min={alvoMin}
+                  max={100}
+                  step={0.1}
+                  value={alvo}
+                  aria-valuetext={`${n1(alvo)}%`}
+                  onKeyDown={teclarAlvo}
+                  onChange={(e) => setAlvo(Number(e.target.value))}
                 />
-              ))}
+              </div>
+              <div className="escala">
+                <span>
+                  {t.cenario1} ({n1(alvoMin)}%)
+                </span>
+                <span>100%</span>
+              </div>
             </div>
-            <input
-              id="alvo"
-              type="range"
-              min={alvoMin}
-              max={100}
-              step={0.1}
-              value={alvo}
-              onChange={(e) => setAlvo(Number(e.target.value))}
-            />
+
+            <div className="alvo">
+              <label htmlFor="dod">{t.dodRotulo}</label>
+              <output htmlFor="dod">{n1(dodPct, 0)}%</output>
+              <div className="trilho" style={{ '--pct': fracaoDod(dodPct) } as CSSProperties}>
+                <input
+                  id="dod"
+                  type="range"
+                  min={DOD_MIN}
+                  max={DOD_MAX}
+                  step={5}
+                  value={dodPct}
+                  aria-valuetext={`${n1(dodPct, 0)}%`}
+                  onChange={(e) => setDodPct(Number(e.target.value))}
+                />
+              </div>
+              <div className="escala">
+                <span>{DOD_MIN}%</span>
+                <span>{DOD_MAX}%</span>
+              </div>
+            </div>
+
+            <div className="tiles">
+              <Tile rotulo={t.cargaFlat} valor={n1(c2.cargaMw)} unidade="MW" />
+              <Tile rotulo={t.energiaBess} valor={n1(c2.bessMwh)} unidade="MWh" />
+              <Tile rotulo={t.potenciaBess} valor={n1(c2.bessMw)} unidade="MW" />
+              <Tile
+                rotulo={t.aprovReal}
+                valor={n1(c2.aproveitamentoRealPct)}
+                unidade="%"
+                nota={
+                  alvo - c2.aproveitamentoRealPct >= 0.05
+                    ? t.diferencaAlvo(n1(alvo - c2.aproveitamentoRealPct), n1(alvo))
+                    : t.alvoNota(n1(alvo))
+                }
+                destaque
+              />
+            </div>
+
+            <p className="aviso">{t.c2Aviso}</p>
           </div>
-          <div className="escala">
-            <span>
-              {t.cenario1} ({n1(alvoMin)}%)
-            </span>
-            <span>100%</span>
+
+          <div className="c2-graficos">
+            <div className="cartao">
+              <h3>{t.graficoDespacho}</h3>
+              <p className="subtitulo">{t.graficoDespachoSub}</p>
+              <Legenda series={seriesDespacho(t)} linha={t.cargaFlat} />
+              <GraficoDespacho despacho={despacho} cargaMw={c2.cargaMw} />
+            </div>
+
+            {c2.bessMwh > 0 && (
+              <div className="cartao">
+                <h3>{t.graficoSoc}</h3>
+                <p className="subtitulo">{t.graficoSocSub(n1(c2.bessMw), n1(c2.bessMwh), n1(dodPct, 0))}</p>
+                <Legenda series={seriesSoc(t)} linha={t.capNominal} />
+                <GraficoSoc soc={despacho.soc} energiaNominal={c2.bessMwh} dod={dod} />
+              </div>
+            )}
+
+            <div className="cartao">
+              <h3>{t.niveis}</h3>
+              <p className="subtitulo">{t.niveisSub}</p>
+              <div className="rolagem">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{t.colAlvo}</th>
+                      <th>{t.colCarga}</th>
+                      <th>BESS (MWh)</th>
+                      <th>BESS (MW)</th>
+                      <th>{t.colAnoReal}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {niveis.map((n) => {
+                      const usar = () => setAlvo(Math.max(alvoMin, Math.round(n.alvoPct * 10) / 10))
+                      const ativo = Math.abs(n.alvoPct - alvo) < 0.1
+                      return (
+                      <tr key={n.alvoPct} data-ativo={ativo} onClick={usar}>
+                        <td className="rotulo-linha">
+                          <button
+                            type="button"
+                            aria-pressed={ativo}
+                            aria-label={t.usarAlvo(n1(n.alvoPct))}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              usar()
+                            }}
+                          >
+                            {n1(n.alvoPct)}
+                          </button>
+                        </td>
+                        <td>{n1(n.cargaMw)}</td>
+                        <td>{n1(n.bessMwh)}</td>
+                        <td>{n1(n.bessMw)}</td>
+                        <td>{n1(n.aproveitamentoRealPct)}</td>
+                      </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
-
-        <div className="alvo">
-          <label htmlFor="dod">{t.dodRotulo}</label>
-          <output htmlFor="dod">{n1(dodPct, 0)}%</output>
-          <div className="trilho" style={{ '--pct': fracaoDod(dodPct) } as CSSProperties}>
-            <input
-              id="dod"
-              type="range"
-              min={DOD_MIN}
-              max={DOD_MAX}
-              step={5}
-              value={dodPct}
-              onChange={(e) => setDodPct(Number(e.target.value))}
-            />
-          </div>
-          <div className="escala">
-            <span>{DOD_MIN}%</span>
-            <span>{DOD_MAX}%</span>
-          </div>
-        </div>
-
-        <div className="tiles">
-          <Tile rotulo={t.cargaFlat} valor={n1(c2.cargaMw)} unidade="MW" />
-          <Tile rotulo={t.energiaBess} valor={n1(c2.bessMwh)} unidade="MWh" />
-          <Tile rotulo={t.potenciaBess} valor={n1(c2.bessMw)} unidade="MW" />
-          <Tile
-            rotulo={t.aprovReal}
-            valor={n1(c2.aproveitamentoRealPct)}
-            unidade="%"
-            nota={t.alvoNota(n1(alvo))}
-          />
-        </div>
-
-        <div className="cartao">
-          <h4>{t.graficoDespacho}</h4>
-          <p className="subtitulo">{t.graficoDespachoSub}</p>
-          <Legenda series={seriesDespacho(t)} linha={t.cargaFlat} />
-          <GraficoDespacho despacho={despacho} cargaMw={c2.cargaMw} />
-        </div>
-
-        {c2.bessMwh > 0 && (
-          <div className="cartao">
-            <h4>{t.graficoSoc}</h4>
-            <p className="subtitulo">{t.graficoSocSub(n1(c2.bessMw), n1(c2.bessMwh), n1(dodPct, 0))}</p>
-            <Legenda series={seriesSoc(t)} linha={t.capNominal} />
-            <GraficoSoc soc={despacho.soc} energiaNominal={c2.bessMwh} dod={dod} />
-          </div>
-        )}
-
-        <div className="cartao">
-          <h4>{t.niveis}</h4>
-          <p className="subtitulo">{t.niveisSub}</p>
-          <table>
-            <thead>
-              <tr>
-                <th>{t.colAlvo}</th>
-                <th>{t.colCarga}</th>
-                <th>BESS (MWh)</th>
-                <th>BESS (MW)</th>
-                <th>{t.colAnoReal}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {niveis.map((n) => {
-                const usar = () => setAlvo(Math.max(alvoMin, Math.round(n.alvoPct * 10) / 10))
-                const ativo = Math.abs(n.alvoPct - alvo) < 0.1
-                return (
-                <tr key={n.alvoPct} data-ativo={ativo} onClick={usar}>
-                  <td className="rotulo-linha">
-                    <button
-                      type="button"
-                      aria-pressed={ativo}
-                      aria-label={t.usarAlvo(n1(n.alvoPct))}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        usar()
-                      }}
-                    >
-                      {n1(n.alvoPct)}
-                    </button>
-                  </td>
-                  <td>{n1(n.cargaMw)}</td>
-                  <td>{n1(n.bessMwh)}</td>
-                  <td>{n1(n.bessMw)}</td>
-                  <td>{n1(n.aproveitamentoRealPct)}</td>
-                </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <p className="aviso">{t.c2Aviso}</p>
       </section>
     </article>
   )
@@ -265,6 +290,26 @@ function useRota() {
 
 const ir = (rota: string) => {
   window.location.hash = rota
+}
+
+/** JSON de public/data; rejeita quando a resposta não é 2xx. */
+const carregar = <T,>(arquivo: string): Promise<T> =>
+  fetch(`${import.meta.env.BASE_URL}data/${arquivo}`).then((r) => {
+    if (!r.ok) throw new Error(`${r.status} ${arquivo}`)
+    return r.json()
+  })
+
+/** No lugar do conteúdo quando os dados não chegam. */
+function Erro({ onTentar }: { onTentar: () => void }) {
+  const { t } = useIdioma()
+  return (
+    <div className="erro" role="alert">
+      <p>{t.erroCarregar}</p>
+      <button type="button" onClick={onTentar}>
+        {t.tentarNovamente}
+      </button>
+    </div>
+  )
 }
 
 const FONTE_ONS = 'https://dados.ons.org.br/dataset/restricao_coff_eolica_detail'
@@ -527,17 +572,24 @@ function Esqueleto({ variante }: { variante: 'inicio' | 'cluster' }) {
 function PaginaCluster({ id, nome }: { id: string; nome: string }) {
   const { t } = useIdioma()
   const [cluster, setCluster] = useState<Cluster>()
+  const [erro, setErro] = useState(false)
+  const [tentativa, setTentativa] = useState(0)
 
   useEffect(() => {
     window.scrollTo(0, 0)
     let atual = true
-    fetch(`${import.meta.env.BASE_URL}data/${id}.json`)
-      .then((r) => r.json())
-      .then((c: Cluster) => atual && setCluster(c))
+    carregar<Cluster>(`${id}.json`)
+      .then((c) => atual && setCluster(c))
+      .catch(() => atual && setErro(true))
     return () => {
       atual = false
     }
-  }, [id])
+  }, [id, tentativa])
+
+  const tentar = () => {
+    setErro(false)
+    setTentativa((n) => n + 1)
+  }
 
   return (
     <main className="pagina">
@@ -548,7 +600,13 @@ function PaginaCluster({ id, nome }: { id: string; nome: string }) {
           { rotulo: titulo(nome) },
         ]}
       />
-      {cluster?.id === id ? <Painel key={id} cluster={cluster} /> : <Esqueleto variante="cluster" />}
+      {erro ? (
+        <Erro onTentar={tentar} />
+      ) : cluster?.id === id ? (
+        <Painel key={id} cluster={cluster} />
+      ) : (
+        <Esqueleto variante="cluster" />
+      )}
     </main>
   )
 }
@@ -556,17 +614,32 @@ function PaginaCluster({ id, nome }: { id: string; nome: string }) {
 export default function App() {
   const [clusters, setClusters] = useState<ClusterResumo[]>()
   const [malhas, setMalhas] = useState<Malhas>()
+  const [erro, setErro] = useState(false)
+  const [tentativa, setTentativa] = useState(0)
   const rota = useRota()
 
   useEffect(() => {
-    fetch(`${import.meta.env.BASE_URL}data/clusters.json`)
-      .then((r) => r.json())
-      .then((lista: ClusterResumo[]) => setClusters(lista.sort((a, b) => b.corte_anual_gwh - a.corte_anual_gwh)))
-    fetch(`${import.meta.env.BASE_URL}data/mapa.json`)
-      .then((r) => r.json())
-      .then(setMalhas)
-  }, [])
+    Promise.all([carregar<ClusterResumo[]>('clusters.json'), carregar<Malhas>('mapa.json')])
+      .then(([lista, m]) => {
+        setClusters(lista.sort((a, b) => b.corte_anual_gwh - a.corte_anual_gwh))
+        setMalhas(m)
+      })
+      .catch(() => setErro(true))
+  }, [tentativa])
 
+  if (erro)
+    return (
+      <Moldura>
+        <main className="pagina">
+          <Erro
+            onTentar={() => {
+              setErro(false)
+              setTentativa((n) => n + 1)
+            }}
+          />
+        </main>
+      </Moldura>
+    )
   if (!clusters || !malhas)
     return (
       <Moldura>
